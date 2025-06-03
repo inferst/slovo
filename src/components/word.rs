@@ -17,37 +17,39 @@ fn get_inverse_log_progress(value: f64, max: f64) -> f64 {
     let log_value = clamped_value.ln();
 
     let normalized = (log_value - log_min) / (log_max - log_min);
-    let percent = (1.0 - normalized) * 100.0;
+    let smoothed = normalized.powf(3.0);
+    let percent = (1.0 - smoothed) * 100.0;
 
     percent.clamp(0.0, 100.0)
 }
 
 #[component]
 pub fn Word(props: WordProps) -> Element {
-    let width = get_inverse_log_progress(props.distance as f64, 4000.);
-    let color = match props.distance {
-        1 => "from-purple-700 to-purple-500",
-        2..=100 => "from-green-700 to-green-500",
-        101..=1000 => "from-yellow-700 to-yellow-500",
-        1001..=3000 => "from-orange-700 to-orange-500",
+    let max = 3000;
+    let width = get_inverse_log_progress(props.distance as f64, max as f64);
+    let color = match width {
+        100. => "from-blue-500 to-purple-500",
+        75.0..=100.0 => "from-green-700 to-green-500",
+        50.0..=75.0 => "from-yellow-700 to-yellow-500",
+        25.0..=50.0 => "from-orange-700 to-orange-500",
         _ => "from-red-700 to-red-500",
     };
 
     rsx! {
         div {
-            class: "relative",
+            class: "relative font-bold",
 
             div {
-                class: "relative mb-2 rounded-md font-bold border-2",
-                class: if props.animate { "border-white" },
+                class: "relative mb-2 rounded-md",
+                class: if props.animate { "border-2 border-white" },
 
                 div {
-                    class: "absolute left-0 top-0 h-[100%] w-[var(--width)] p-1 z-0 bg-linear-to-r {color}",
+                    class: "absolute rounded-md left-0 top-0 h-[100%] w-[var(--width)] p-1 z-0 bg-linear-to-r {color}",
                     style: "--width: {width}%",
                 }
 
                 div {
-                    class: "flex px-4 py-2 bg-gray-800 items-center text-xl",
+                    class: "rounded-md flex px-4 py-2 bg-gray-800 items-center text-shadow-md",
 
                     div {
                         class: "relative grow z-10",
@@ -62,7 +64,7 @@ pub fn Word(props: WordProps) -> Element {
             }
 
             div {
-                class: "text-[var(--color)] absolute left-[100%] top-0 h-[100%] mx-4 py-2 whitespace-nowrap",
+                class: "text-[var(--color)] absolute left-[100%] top-0 h-[100%] mx-4 py-2 whitespace-nowrap flex items-center",
                 style: "--color: {props.color}",
                 "{props.user}"
             }

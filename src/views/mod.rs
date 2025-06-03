@@ -11,5 +11,11 @@
 mod game;
 pub use game::Game;
 
+mod websocket;
+pub use websocket::setup_websocket_listener;
+
+mod settings;
+pub use settings::Settings;
+
 mod navbar;
 pub use navbar::Navbar;

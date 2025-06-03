@@ -1,161 +1,250 @@
+use crate::{
+    api::Score,
+    components::{Request, Words},
+    views::{
+        setup_websocket_listener,
+        websocket::{ChatMessage, Command},
+    },
+    API,
+};
+use dioxus::logger::tracing::info;
+use dioxus::{logger::tracing::debug, prelude::*};
+use gloo::storage::{LocalStorage, Storage};
+use gloo_timers::future::TimeoutFuture;
 use std::collections::HashMap;
 
-use crate::{
-    api::{Contextno, Score},
-    components::{Request, Words},
-};
-use dioxus::{
-    logger::tracing::{debug, error, info},
-    prelude::*,
-};
-use futures::{SinkExt, StreamExt};
-use gloo_net::websocket::{futures::WebSocket, Message};
-use gloo_timers::future::TimeoutFuture;
-
-struct ChatMessage {
-    word: String,
-    user: String,
-    color: String,
-}
-
-fn parse_message(msg: &str) -> Option<ChatMessage> {
-    let parts: Vec<&str> = msg.splitn(5, ' ').collect();
-
-    if let [tags, _, command, _, message] = parts[..] {
-        let tags = tags.split(";");
-        let mut map = HashMap::new();
-
-        for tag in tags {
-            let parts: Vec<&str> = tag.splitn(2, '=').collect();
-            if let [key, value] = parts[..] {
-                map.insert(key, value);
-            }
-        }
-
-        let parts: Vec<_> = message.split(" ").collect();
-
-        let user_name = map.get("display-name").unwrap_or(&"anonymous").to_string();
-        let color = map.get("color").unwrap_or(&"#ffffff").to_string();
-
-        if command == "PRIVMSG" && parts.len() == 1 {
-            Some(ChatMessage {
-                word: message[1..].to_string(),
-                user: user_name,
-                color,
-            })
-        } else {
-            None
-        }
-    } else {
-        None
-    }
+fn is_only_russian_letters(s: &str) -> bool {
+    s.chars().all(|c| matches!(c, 'а'..='я' | 'ё'))
 }
 
 #[component]
 pub fn Game() -> Element {
     let mut requests = use_signal::<Vec<Request>>(Vec::new);
+    let mut is_completed = use_signal(|| false);
 
-    let mut add_request = async move |score: Score, user: String, color: String| {
-        let rank = score.rank;
-
-        for request in requests.write().iter_mut() {
-            request.animate = false;
-        }
-
-        let last = requests
-            .iter()
-            .reduce(|acc, e| if e.id > acc.id { e } else { acc })
-            .map_or(0, |word| word.id);
-
-        let word = Request {
-            id: last + 1,
-            score,
-            user,
-            color,
-            animate: false,
-        };
-
-        requests.write().push(word);
-
-        requests.write().sort_by_key(|request| request.score.rank);
-
-        use_future(move || async move {
-            TimeoutFuture::new(0).await;
-
-            for request in requests.write().iter_mut() {
-                if request.score.rank == rank {
-                    request.animate = true;
-                }
-            }
-        });
-    };
-
-    let challenge = use_resource(Contextno::get_random_challenge);
-
-    let tx = use_coroutine(move |mut rx: UnboundedReceiver<String>| async move {
-        let mut connect = async move || {
-            let url = "wss://irc-ws.chat.twitch.tv:443";
-            debug!("Connecting to websocket at {url}");
-            let mut socket = WebSocket::open(url).unwrap();
-            debug!("Connected to websocket.");
-
-            loop {
-                match futures::future::select(rx.next(), socket.next()).await {
-                    futures::future::Either::Left((msg, _)) => {
-                        if let Some(msg) = msg {
-                            debug!("Sending to socket");
-                            socket.send(Message::Text(msg)).await.unwrap();
-                        } else {
-                            break;
-                        }
-                    }
-                    futures::future::Either::Right((msg, _)) => match msg {
-                        Some(Ok(Message::Text(msg))) => {
-                            debug!("Receiving from socket");
-
-                            if let Some(message) = parse_message(&msg) {
-                                let challenge_id = (*challenge.read_unchecked())
-                                    .as_ref()
-                                    .unwrap()
-                                    .as_ref()
-                                    .unwrap()
-                                    .id
-                                    .clone();
-
-                                let result = Contextno::get_score(challenge_id, message.word).await;
-
-                                if let Ok(item) = result {
-                                    add_request(item, message.user, message.color).await;
-                                }
-                            }
-                        }
-                        Some(Ok(Message::Bytes(msg))) => {
-                            error!("Received binary message: {:?}", msg);
-                        }
-                        Some(Err(err)) => {
-                            error!("Error: {:?}", err);
-                            break;
-                        }
-                        None => {
-                            break;
-                        }
-                    },
-                }
-            }
-        };
-
-        loop {
-            connect().await;
-            debug!("Disconnected from websocket");
-
-            TimeoutFuture::new(1_000).await;
-        }
+    let mut challenge = use_resource(async || {
+        let api = API.read().clone();
+        api.get_random_challenge().await
     });
 
-    use_effect(move || {
-        tx.send("NICK justinfan12345".to_string());
-        tx.send("CAP REQ :twitch.tv/tags".to_string());
-        tx.send("JOIN #mikerime".to_string());
+    let mut add_request =
+        async move |challenge_id: String, score: Score, user: String, color: String| {
+            let rank = score.rank;
+
+            for request in requests.write().iter_mut() {
+                request.animate = false;
+            }
+
+            let last = requests
+                .iter()
+                .reduce(|acc, e| if e.id > acc.id { e } else { acc })
+                .map_or(0, |word| word.id);
+
+            let word = Request {
+                id: last + 1,
+                score,
+                user: user.clone(),
+                color,
+                animate: false,
+            };
+
+            requests.write().push(word);
+
+            requests.write().sort_by_key(|request| request.score.rank);
+
+            use_future(move || async move {
+                TimeoutFuture::new(0).await;
+
+                for request in requests.write().iter_mut() {
+                    if request.score.rank == rank {
+                        request.animate = true;
+                    }
+                }
+            });
+
+            if rank == 1 {
+                let wins = LocalStorage::get::<HashMap<String, String>>("wins");
+
+                if wins.is_err() {
+                    let mut wins = HashMap::new();
+                    wins.insert(challenge_id.clone(), user.clone());
+
+                    LocalStorage::set("wins", wins).unwrap();
+                }
+
+                if let Ok(mut wins) = wins {
+                    if !wins.contains_key(&challenge_id) {
+                        wins.insert(challenge_id.clone(), user.clone());
+                        LocalStorage::set("wins", wins).unwrap();
+                    }
+                }
+
+                is_completed.set(true);
+            }
+        };
+
+    let _tx = use_coroutine(setup_websocket_listener(
+        move |message: ChatMessage| async move {
+            debug!(?message);
+
+            match message {
+                ChatMessage::Word(word_message) => {
+                    let api = API.read().clone();
+
+                    let challenge_id = (*challenge.read_unchecked())
+                        .as_ref()
+                        .unwrap()
+                        .as_ref()
+                        .unwrap()
+                        .id
+                        .clone();
+
+                    if is_only_russian_letters(&word_message.word) {
+                        let word = word_message.word.to_lowercase().replace('ё', "е");
+                        let result = api.get_score(challenge_id.to_string(), word).await;
+
+                        if let Ok(item) = result {
+                            add_request(challenge_id, item, word_message.user, word_message.color)
+                                .await;
+                        }
+                    }
+                }
+                ChatMessage::Command(command) => {
+                    if command == Command::Next && *is_completed.read() {
+                        debug!("Restarting challenge");
+                        requests.clear();
+                        is_completed.set(false);
+                        challenge.restart();
+                    }
+                }
+            }
+        },
+    ));
+
+    use_future(move || async move {
+        let challenge_id = "".to_string();
+
+        TimeoutFuture::new(1_00).await;
+        let mut score = Score::new();
+        score.rank = 50;
+        score.word = "слово".to_string();
+        add_request(
+            challenge_id.clone(),
+            score,
+            "MikeRime".to_string(),
+            "#ff0000".to_string(),
+        )
+        .await;
+
+        TimeoutFuture::new(1_00).await;
+        let mut score = Score::new();
+        score.rank = 100;
+        score.word = "слово".to_string();
+        add_request(
+            challenge_id.clone(),
+            score,
+            "MikeRime".to_string(),
+            "#ff0000".to_string(),
+        )
+        .await;
+
+        TimeoutFuture::new(1_00).await;
+        let mut score = Score::new();
+        score.rank = 150;
+        score.word = "слово".to_string();
+        add_request(
+            challenge_id.clone(),
+            score,
+            "MikeRime".to_string(),
+            "#ff0000".to_string(),
+        )
+        .await;
+
+        TimeoutFuture::new(1_00).await;
+        let mut score = Score::new();
+        score.rank = 200;
+        score.word = "слово".to_string();
+        add_request(
+            challenge_id.clone(),
+            score,
+            "MikeRime".to_string(),
+            "#ff0000".to_string(),
+        )
+        .await;
+
+        TimeoutFuture::new(1_00).await;
+        let mut score = Score::new();
+        score.rank = 500;
+        score.word = "слово".to_string();
+        add_request(
+            challenge_id.clone(),
+            score,
+            "MikeRime".to_string(),
+            "#ff0000".to_string(),
+        )
+        .await;
+
+        TimeoutFuture::new(1_00).await;
+        let mut score = Score::new();
+        score.rank = 1000;
+        score.word = "слово".to_string();
+        add_request(
+            challenge_id.clone(),
+            score,
+            "MikeRime".to_string(),
+            "#ff0000".to_string(),
+        )
+        .await;
+
+        TimeoutFuture::new(1_00).await;
+        let mut score = Score::new();
+        score.rank = 2000;
+        score.word = "слово".to_string();
+        add_request(
+            challenge_id.clone(),
+            score,
+            "MikeRime".to_string(),
+            "#ff0000".to_string(),
+        )
+        .await;
+
+        TimeoutFuture::new(1_00).await;
+        let mut score = Score::new();
+        score.rank = 3000;
+        score.word = "слово".to_string();
+        add_request(
+            challenge_id.clone(),
+            score,
+            "MikeRime".to_string(),
+            "#ff0000".to_string(),
+        )
+        .await;
+
+        TimeoutFuture::new(1_00).await;
+        let mut score = Score::new();
+        score.rank = -1;
+        score.word = "слово".to_string();
+        score.details = "Слово слово не найдено в словаре".to_string();
+        add_request(
+            challenge_id.clone(),
+            score,
+            "MikeRime".to_string(),
+            "#ff0000".to_string(),
+        )
+        .await;
+
+        TimeoutFuture::new(1_00).await;
+        let mut score = Score::new();
+        score.rank = 1;
+        score.word = "слово".to_string();
+        score.completed = true;
+        add_request(
+            challenge_id.clone(),
+            score,
+            "MikeRime4".to_string(),
+            "#0000ff".to_string(),
+        )
+        .await;
     });
 
     info!("render");
