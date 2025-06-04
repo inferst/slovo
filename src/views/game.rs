@@ -20,6 +20,8 @@ fn is_only_russian_letters(s: &str) -> bool {
 #[component]
 pub fn Game() -> Element {
     let mut requests = use_signal::<Vec<Request>>(Vec::new);
+    let mut words = use_signal::<Vec<Request>>(Vec::new);
+
     let mut is_completed = use_signal(|| false);
 
     let mut challenge = use_resource(async || {
@@ -35,13 +37,15 @@ pub fn Game() -> Element {
                 request.animate = false;
             }
 
-            let last = requests
+            let next_id = requests()
                 .iter()
-                .reduce(|acc, e| if e.id > acc.id { e } else { acc })
-                .map_or(0, |word| word.id);
+                .max_by_key(|word| word.id)
+                .as_ref()
+                .map_or(0, |word| word.id)
+                + 1;
 
             let word = Request {
-                id: last + 1,
+                id: next_id,
                 score,
                 user: user.clone(),
                 color,
@@ -50,17 +54,8 @@ pub fn Game() -> Element {
 
             requests.write().push(word);
 
-            requests.write().sort_by_key(|request| request.score.rank);
-
-            use_future(move || async move {
-                TimeoutFuture::new(0).await;
-
-                for request in requests.write().iter_mut() {
-                    if request.score.rank == rank {
-                        request.animate = true;
-                    }
-                }
-            });
+            words.set(requests.read().clone());
+            words.write().sort_by_key(|request| request.score.rank);
 
             if rank == 1 {
                 let wins = LocalStorage::get::<HashMap<String, String>>("wins");
@@ -81,6 +76,22 @@ pub fn Game() -> Element {
 
                 is_completed.set(true);
             }
+
+            spawn(async move {
+                TimeoutFuture::new(10).await;
+
+                for request in requests.write().iter_mut() {
+                    if request.id == next_id {
+                        request.animate = true;
+                    }
+                }
+
+                for request in words.write().iter_mut() {
+                    if request.id == next_id {
+                        request.animate = true;
+                    }
+                }
+            });
         };
 
     let _tx = use_coroutine(setup_websocket_listener(
@@ -124,7 +135,7 @@ pub fn Game() -> Element {
     use_future(move || async move {
         let challenge_id = "".to_string();
 
-        TimeoutFuture::new(1_00).await;
+        TimeoutFuture::new(500).await;
         let mut score = Score::new();
         score.rank = 50;
         score.word = "слово".to_string();
@@ -136,7 +147,7 @@ pub fn Game() -> Element {
         )
         .await;
 
-        TimeoutFuture::new(1_00).await;
+        TimeoutFuture::new(500).await;
         let mut score = Score::new();
         score.rank = 100;
         score.word = "слово".to_string();
@@ -148,7 +159,7 @@ pub fn Game() -> Element {
         )
         .await;
 
-        TimeoutFuture::new(1_00).await;
+        TimeoutFuture::new(500).await;
         let mut score = Score::new();
         score.rank = 150;
         score.word = "слово".to_string();
@@ -160,7 +171,7 @@ pub fn Game() -> Element {
         )
         .await;
 
-        TimeoutFuture::new(1_00).await;
+        TimeoutFuture::new(500).await;
         let mut score = Score::new();
         score.rank = 200;
         score.word = "слово".to_string();
@@ -172,7 +183,7 @@ pub fn Game() -> Element {
         )
         .await;
 
-        TimeoutFuture::new(1_00).await;
+        TimeoutFuture::new(500).await;
         let mut score = Score::new();
         score.rank = 500;
         score.word = "слово".to_string();
@@ -184,7 +195,7 @@ pub fn Game() -> Element {
         )
         .await;
 
-        TimeoutFuture::new(1_00).await;
+        TimeoutFuture::new(500).await;
         let mut score = Score::new();
         score.rank = 1000;
         score.word = "слово".to_string();
@@ -196,7 +207,7 @@ pub fn Game() -> Element {
         )
         .await;
 
-        TimeoutFuture::new(1_00).await;
+        TimeoutFuture::new(500).await;
         let mut score = Score::new();
         score.rank = 2000;
         score.word = "слово".to_string();
@@ -208,7 +219,7 @@ pub fn Game() -> Element {
         )
         .await;
 
-        TimeoutFuture::new(1_00).await;
+        TimeoutFuture::new(500).await;
         let mut score = Score::new();
         score.rank = 3000;
         score.word = "слово".to_string();
@@ -220,7 +231,7 @@ pub fn Game() -> Element {
         )
         .await;
 
-        TimeoutFuture::new(1_00).await;
+        TimeoutFuture::new(500).await;
         let mut score = Score::new();
         score.rank = -1;
         score.word = "слово".to_string();
@@ -233,7 +244,7 @@ pub fn Game() -> Element {
         )
         .await;
 
-        TimeoutFuture::new(1_00).await;
+        TimeoutFuture::new(500).await;
         let mut score = Score::new();
         score.rank = 1;
         score.word = "слово".to_string();
@@ -241,19 +252,20 @@ pub fn Game() -> Element {
         add_request(
             challenge_id.clone(),
             score,
-            "MikeRime4".to_string(),
+            "MikeRime".to_string(),
             "#0000ff".to_string(),
         )
         .await;
     });
 
-    info!("render");
+    info!("Game render");
 
     rsx! {
         match &*challenge.read_unchecked() {
             Some(Ok(_)) => rsx! {
                 Words {
                     requests,
+                    words,
                 }
             },
             Some(Err(e)) => rsx! { p { "Loading failed, {e}" } },

@@ -1,5 +1,3 @@
-use gloo::storage::{LocalStorage, Storage};
-
 mod error;
 
 #[derive(serde::Deserialize)]
@@ -12,7 +10,8 @@ pub struct Challenge {
     pub id: String,
 }
 
-#[derive(serde::Deserialize, Debug, Clone)]
+#[allow(dead_code)]
+#[derive(serde::Deserialize, PartialEq, Debug, Clone)]
 pub struct Score {
     pub completed: bool,
     pub details: String,
@@ -23,6 +22,7 @@ pub struct Score {
     pub word: String,
 }
 
+#[allow(dead_code)]
 impl Score {
     pub fn new() -> Self {
         Self {
@@ -49,17 +49,8 @@ impl Contextno {
         Contextno { token: None }
     }
 
-    pub async fn initialize_token(&mut self) {
-        let token = LocalStorage::get::<String>("token");
-
-        if let Ok(token) = token {
-            self.token = Some(token);
-        } else {
-            let session = Contextno::initialize_session().await.unwrap();
-            LocalStorage::set::<String>("token", session.token.clone());
-
-            self.token = Some(session.token);
-        }
+    pub fn set_token(&mut self, token: String) {
+        self.token = Some(token);
     }
 
     pub async fn initialize_session() -> Result<Session, reqwest::Error> {

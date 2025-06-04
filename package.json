@@ -1,6 +1,12 @@
 {
-  "dependencies": {
+  "scripts": {
+    "dev": "concurrently \"npm run tailwind:watch\" \"npm run dx:serve\"",
+    "dx:serve": "dx serve",
+    "tailwind:watch": "npx @tailwindcss/cli -i ./tailwind.css -o ./assets/tailwind.css --watch"
+  },
+  "devDependencies": {
     "@tailwindcss/cli": "^4.1.8",
+    "concurrently": "^9.1.2",
     "tailwindcss": "^4.1.8"
   }
 }

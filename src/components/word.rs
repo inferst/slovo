@@ -1,5 +1,11 @@
 use dioxus::prelude::*;
 
+#[derive(PartialEq, Clone)]
+pub enum UserPosition {
+    Left,
+    Right,
+}
+
 #[derive(PartialEq, Clone, Props)]
 pub struct WordProps {
     pub word: String,
@@ -7,6 +13,8 @@ pub struct WordProps {
     pub color: String,
     pub distance: i32,
     pub animate: bool,
+    pub user_position: UserPosition,
+    pub details: String,
 }
 
 fn get_inverse_log_progress(value: f64, max: f64) -> f64 {
@@ -40,31 +48,45 @@ pub fn Word(props: WordProps) -> Element {
             class: "relative font-bold",
 
             div {
-                class: "relative mb-2 rounded-md",
-                class: if props.animate { "border-2 border-white" },
+                class: "relative rounded-md",
+                class: if props.animate { "border-2 border-white mt-[-2px] mb-[6px]" } else { "mb-[8px]" },
 
-                div {
-                    class: "absolute rounded-md left-0 top-0 h-[100%] w-[var(--width)] p-1 z-0 bg-linear-to-r {color}",
-                    style: "--width: {width}%",
-                }
-
-                div {
-                    class: "rounded-md flex px-4 py-2 bg-gray-800 items-center text-shadow-md",
-
+                if props.distance < 0 {
                     div {
-                        class: "relative grow z-10",
-                        "{props.word}"
+                        class: "rounded-md flex px-4 py-2 bg-gray-800 items-center text-shadow-md",
+                        "{props.details}"
+                    }
+                } else {
+                    div {
+                        class: "absolute rounded-md left-0 top-0 h-[100%] w-[var(--width)] p-1 z-0 bg-linear-to-r {color}",
+                        style: "--width: {width}%",
                     }
 
                     div {
-                        class: "relative z-10",
-                        "{props.distance}"
+                        class: "rounded-md flex px-4 py-2 bg-gray-800 items-center text-shadow-md",
+
+                        div {
+                            class: "relative grow z-10",
+                            "{props.word}"
+                        }
+
+                        div {
+                            class: "relative z-10",
+                            "{props.distance}"
+                        }
                     }
                 }
+
             }
 
             div {
-                class: "text-[var(--color)] absolute left-[100%] top-0 h-[100%] mx-4 py-2 whitespace-nowrap flex items-center",
+                class: "text-[var(--color)] top-0 absolute h-[100%] mx-4 py-2 whitespace-nowrap flex items-center",
+                class: if props.user_position == UserPosition::Right {
+                    "left-[100%]"
+                },
+                class: if props.user_position == UserPosition::Left {
+                    "right-[100%]"
+                },
                 style: "--color: {props.color}",
                 "{props.user}"
             }

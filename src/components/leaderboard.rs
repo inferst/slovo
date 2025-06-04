@@ -27,7 +27,7 @@ pub fn Leaderboard() -> Element {
             div {
                 class: "flex justify-center",
                 div {
-                    class: "bg-blue-700 border-2 rounded-md p-2 -mt-12",
+                    class: "bg-blue-700 border-2 rounded-md py-2 px-4 -mt-12",
                     "LEADERBOARD"
                 }
             }

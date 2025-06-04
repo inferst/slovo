@@ -4,15 +4,15 @@ use dioxus::logger;
 use dioxus::logger::tracing::Level;
 use dioxus::prelude::*;
 
+use gloo::storage::{LocalStorage, Storage};
 use views::{Game, Navbar, Settings};
 
 mod components;
 mod views;
 
 mod api;
-mod server;
 
-static API: GlobalSignal<Contextno> = Global::new(|| Contextno::new());
+static API: GlobalSignal<Contextno> = Global::new(Contextno::new);
 
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
@@ -39,7 +39,18 @@ fn App() -> Element {
     let mut is_init = use_signal(|| false);
 
     use_future(move || async move {
-        API.write().initialize_token().await;
+        let token_key = "token";
+        let token = LocalStorage::get::<String>(token_key);
+
+        if let Ok(token) = token {
+            API.write().set_token(token);
+        } else {
+            let session = Contextno::initialize_session().await.unwrap();
+            let _ = LocalStorage::set::<String>(token_key, session.token.clone());
+
+            API.write().set_token(session.token);
+        }
+
         is_init.set(true);
     });
 
