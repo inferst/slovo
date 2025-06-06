@@ -11,7 +11,7 @@ pub fn Navbar() -> Element {
         let mut current = "hover:text-gray-300";
 
         if route == path {
-            current = "text-purple-400 hover:text-purple-500 font-bold";
+            current = "text-blue-600 hover:text-blue-700 font-bold";
         }
 
         let class = "mx-2 transition-colors duration-200 ease hover:cursor-pointer";

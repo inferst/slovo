@@ -1,6 +1,6 @@
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    Storage(#[from] gloo::storage::errors::StorageError),
+    EmptyToken,
     Request(#[from] reqwest::Error),
 }
 

@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use dioxus::prelude::*;
-use gloo::storage::{LocalStorage, Storage};
+
+use crate::AppState;
 
 fn build_leaderboard(games: HashMap<String, String>) -> Vec<(String, usize)> {
     let mut leaderboard: HashMap<String, usize> = HashMap::new();
@@ -18,7 +19,7 @@ fn build_leaderboard(games: HashMap<String, String>) -> Vec<(String, usize)> {
 
 #[component]
 pub fn Leaderboard() -> Element {
-    let wins = LocalStorage::get::<HashMap<String, String>>("wins");
+    let wins = use_context::<AppState>().wins;
 
     rsx! {
         div {
@@ -32,31 +33,27 @@ pub fn Leaderboard() -> Element {
                 }
             }
 
-            if let Ok(wins) = wins {
-                ul {
-                    class: "mt-4",
-                    for item in build_leaderboard(wins).iter().take(5).enumerate() {
-                        li {
-                            key: item.1.0,
-                            class: "flex px-4 py-2 mb-2 rounded-md bg-blue-800",
-                            div {
-                                class: "min-w-8 mr-2",
-                                "{item.0 + 1}"
-                            }
-                            div {
-                                class: "grow break-all",
-                                "{item.1.0}"
-                            }
-                            div {
-                                class: "ml-2",
-                                "{item.1.1}"
-                            }
+            ul {
+                class: "mt-4",
+                for item in build_leaderboard(wins().clone()).iter().take(5).enumerate() {
+                    li {
+                        key: item.1.0,
+                        class: "flex px-4 py-2 mb-2 rounded-md bg-blue-800",
+                        div {
+                            class: "min-w-8 mr-2",
+                            "{item.0 + 1}"
+                        }
+                        div {
+                            class: "grow break-all",
+                            "{item.1.0}"
+                        }
+                        div {
+                            class: "ml-2",
+                            "{item.1.1}"
                         }
                     }
                 }
-
             }
-
         }
     }
 }

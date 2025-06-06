@@ -3,7 +3,7 @@
 [web.app]
 
 # HTML title tag content
-title = "wordgame"
+title = "Word Game"
 
 # include `assets` in web platform
 [web.resource]
