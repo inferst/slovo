@@ -9,11 +9,13 @@ use dioxus::prelude::*;
 pub fn Words(requests: ReadOnlySignal<Vec<Request>>) -> Element {
     let last = requests.iter().max_by_key(|word| word.id);
     let last_id = last.as_ref().map_or(0, |word| word.id);
-    let is_completed = last.is_some_and(|word| word.score.completed);
+    let is_completed = requests
+        .iter()
+        .any(|word| word.score.distance.is_some_and(|distance| distance == 1));
 
     let words = use_memo(move || {
         let mut words = requests.cloned();
-        words.sort_by_key(|request| request.score.rank);
+        words.sort_by_key(|request| request.score.distance);
         words
     });
 
@@ -26,7 +28,7 @@ pub fn Words(requests: ReadOnlySignal<Vec<Request>>) -> Element {
             if is_completed {
                 button {
                     class: "w-[200px] mt-4 font-bold p-2 rounded-md text-center bg-blue-600 hover:bg-blue-700 cursor-pointer",
-                    "New Game"
+                    "Новая игра"
                 }
             }
 
@@ -50,7 +52,7 @@ pub fn Words(requests: ReadOnlySignal<Vec<Request>>) -> Element {
                 }
                 ul {
                     class: "w-[50%] ml-1",
-                    for item in words().iter().filter(|item| item.score.rank > 0) {
+                    for item in words().iter().filter(|item| item.score.distance.is_some()) {
                         li {
                             key: item.score.rank,
                             class: if item.id == last_id && !item.animate {"opacity-0"},
@@ -59,10 +61,10 @@ pub fn Words(requests: ReadOnlySignal<Vec<Request>>) -> Element {
                                 word: item.score.word.clone(),
                                 user: item.user.clone(),
                                 color: item.color.clone(),
-                                distance: item.score.rank,
+                                distance: item.score.distance.unwrap_or(-1),
                                 animate: item.animate,
                                 user_position: UserPosition::Right,
-                                details: item.score.details.clone(),
+                                details: item.score.error.clone().unwrap_or("".to_string()),
                             }
                         }
                     }

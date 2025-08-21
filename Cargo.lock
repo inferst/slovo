@@ -4355,6 +4355,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "slovo"
+version = "0.1.0"
+dependencies = [
+ "dioxus",
+ "futures",
+ "gloo",
+ "gloo-timers",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tracing",
+ "twitch-irc",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5671,23 +5688,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f42320e61fe2cfd34354ecb597f86f413484a798ba44a8ca1165c58d42da6c1"
 dependencies = [
  "bitflags 2.9.1",
-]
-
-[[package]]
-name = "slovo"
-version = "0.1.0"
-dependencies = [
- "dioxus",
- "futures",
- "gloo",
- "gloo-timers",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror 2.0.12",
- "tokio",
- "tracing",
- "twitch-irc",
 ]
 
 [[package]]

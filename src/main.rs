@@ -1,4 +1,5 @@
 use api::{Contextno, Score};
+use dioxus::dioxus_core::AttributeValue;
 use dioxus::logger;
 use dioxus::logger::tracing::Level;
 use dioxus::{logger::tracing::debug, prelude::*};
@@ -16,8 +17,6 @@ mod api;
 mod components;
 mod views;
 mod websocket;
-
-static API: GlobalSignal<Contextno> = Global::new(Contextno::new);
 
 #[derive(Debug, Clone, Routable, PartialEq)]
 #[rustfmt::skip]
@@ -64,8 +63,6 @@ fn App() -> Element {
         use_signal(|| LocalStorage::get::<Vec<Request>>("requests").unwrap_or(Vec::new()));
 
     let mut add_request = async move |challenge_id: String, word_message: WordMessage| {
-        let api = API.read().clone();
-
         debug!(?word_message);
 
         if word_message
@@ -74,10 +71,29 @@ fn App() -> Element {
             .all(|c| matches!(c, 'а'..='я' | 'ё'))
         {
             let word = word_message.word.to_lowercase().replace('ё', "е");
-            let result = api.get_score(challenge_id.to_string(), word).await;
 
-            if let Ok(item) = result {
-                let rank = item.rank;
+            let mut result = None;
+
+            if requests
+                .read()
+                .iter()
+                .any(|request| request.score.word == word)
+            {
+                result = Some(Score {
+                    error: Some(format!("Слово {} уже использовалось", word)),
+                    distance: None,
+                    word: "".to_string(),
+                });
+            } else {
+                let score = Contextno::get_score(challenge_id.to_string(), word).await;
+
+                if let Ok(score) = score {
+                    result = Some(score);
+                }
+            }
+
+            if let Some(item) = result {
+                let distance = item.distance;
 
                 for request in requests.write().iter_mut() {
                     request.animate = false;
@@ -101,11 +117,13 @@ fn App() -> Element {
 
                 requests.write().push(word);
 
-                if rank == 1 {
-                    wins.write().insert(challenge_id, word_message.user);
-                    is_completed.set(true);
-                    let _ = LocalStorage::set("wins", wins());
-                    // let _ = LocalStorage::set("is_completed", is_completed());
+                if let Some(distance) = distance {
+                    if distance == 1 {
+                        wins.write().insert(challenge_id, word_message.user);
+                        is_completed.set(true);
+                        let _ = LocalStorage::set("wins", wins());
+                        // let _ = LocalStorage::set("is_completed", is_completed());
+                    }
                 }
 
                 // let _ = LocalStorage::set("requests", requests());
@@ -123,22 +141,7 @@ fn App() -> Element {
         }
     };
 
-    let mut challenge = use_resource(async || {
-        let token_key = "token";
-        let token = LocalStorage::get::<String>(token_key);
-
-        if let Ok(token) = token {
-            API.write().set_token(token);
-        } else {
-            let session = Contextno::initialize_session().await.unwrap();
-            let _ = LocalStorage::set::<String>(token_key, session.token.clone());
-
-            API.write().set_token(session.token);
-        }
-
-        let api = API.read().clone();
-        api.get_random_challenge().await
-    });
+    let mut challenge = use_resource(async || Contextno::get_random_challenge().await);
 
     let state = use_context_provider(|| AppState {
         channel: Signal::new(LocalStorage::get("channel").unwrap_or(String::from(""))),
@@ -225,6 +228,7 @@ fn App() -> Element {
         document::Link { rel: "preconnect", href: "https://fonts.googleapis.com"}
         document::Link { rel: "preconnect", href: "https://fonts.gstatic.com"}
         document::Link { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap"}
+        document::Script { data: AttributeValue::Text("qwerty".to_string()), async: true, src: "https://identity.netlify.com/v1/netlify-identity-widget.js" }
 
         match &*challenge.read_unchecked() {
             Some(Ok(_)) => rsx! {

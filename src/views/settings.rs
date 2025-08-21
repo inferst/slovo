@@ -27,16 +27,18 @@ pub fn Settings() -> Element {
     rsx! {
         div {
             class: "mx-auto w-[400px] mt-8",
+
             input {
                 class: "w-full rounded-md border-1 py-2 px-4 outline-none",
-                placeholder: "Channel name",
+                placeholder: "Twitch канал",
                 value: channel,
                 oninput: on_update
             }
+
             button {
                 class: "bg-blue-700 rounded-md py-2 px-4 mt-4 w-full cursor-pointer",
                 onclick: on_save,
-                "Save and play"
+                "Сохранить"
             }
         }
     }

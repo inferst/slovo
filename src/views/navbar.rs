@@ -27,13 +27,13 @@ pub fn Navbar() -> Element {
             Link {
                 class: link_class(Route::Game {}),
                 to: Route::Game {},
-                "Game"
+                "Игра"
             }
 
             Link {
                 class: link_class(Route::Settings {}),
                 to: Route::Settings {},
-                "Settings"
+                "Настройки"
             }
         }
 

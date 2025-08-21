@@ -28,10 +28,10 @@ pub fn History(requests: ReadOnlySignal<Vec<Request>>) -> Element {
                         word: item.score.word.clone(),
                         user: item.user.clone(),
                         color: item.color.clone(),
-                        distance: item.score.rank,
+                        distance: item.score.distance.unwrap_or(-1),
                         animate: item.animate,
                         user_position: UserPosition::Left,
-                        details: item.score.details.clone(),
+                        details: item.score.error.clone().unwrap_or("".to_string()),
                     }
                 }
             }
